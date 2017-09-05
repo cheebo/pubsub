@@ -14,6 +14,7 @@ type publisher struct {
 	config *types.AMQPConfig
 	client *cony.Client
 	publisher *cony.Publisher
+	errors chan error
 }
 
 type subscriber struct {
@@ -32,7 +33,11 @@ type message struct {
 }
 
 func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
-	client := cony.NewClient(
+	pub := &publisher{
+		config: cfg,
+	}
+
+	pub.client = cony.NewClient(
 		cony.URL(cfg.URL),
 		cony.Backoff(cony.DefaultBackoff),
 	)
@@ -44,19 +49,28 @@ func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 		AutoDelete: cfg.AutoDelete,
 		Durable:    cfg.Durable,
 	}
-	client.Declare([]cony.Declaration{
+	pub.client.Declare([]cony.Declaration{
 		cony.DeclareExchange(exc),
 	})
 
 	// Declare and register a publisher
-	pub := cony.NewPublisher(exc.Name, cfg.Key)
-	client.Publish(pub)
+	pub.publisher = cony.NewPublisher(exc.Name, cfg.Key)
+	pub.client.Publish(pub.publisher)
 
-	return &publisher{
-		config: cfg,
-		client: client,
-		publisher: pub,
-	}, nil
+	pub.errors = make(chan error, 100)
+
+	go func(cli *cony.Client, errors chan error){
+		for cli.Loop() {
+			select {
+			case err := <-cli.Errors():
+				errors <-err
+			//case <-cli.Blocking():
+				//
+			}
+		}
+	}(pub.client, pub.errors)
+
+	return pub, nil
 }
 
 
@@ -78,6 +92,10 @@ func (p *publisher) Publish(ctx context.Context, key string, msg proto.Message) 
 	} else {
 		return p.publisher.Publish(publishing)
 	}
+}
+
+func (p *publisher) Errors() <-chan error {
+	return p.errors
 }
 
 

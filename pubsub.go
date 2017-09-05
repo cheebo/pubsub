@@ -8,6 +8,7 @@ import (
 
 type Publisher interface {
 	Publish(context.Context, string, proto.Message) error
+	Errors() <-chan error
 }
 
 type Subscriber interface {
