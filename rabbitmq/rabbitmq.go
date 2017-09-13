@@ -81,7 +81,7 @@ func (p *publisher) Publish(ctx context.Context, key string, msg proto.Message) 
 	}
 
 	publishing := amqp.Publishing{
-		DeliveryMode: p.config.DeliveryMode,
+		DeliveryMode: uint8(p.config.DeliveryMode),
 		ContentType: "application/x-protobuf",
 		Timestamp: time.Now(),
 		Body: body,
