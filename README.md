@@ -10,4 +10,4 @@ Todo implementations
 # Contributors
 
 1. Sergey Chebotar - design / rabbitmq implementation
-2. Shulga Stan - examples for rabbitmq
+2. Stan Shulga - examples for rabbitmq
