@@ -8,6 +8,7 @@ import (
 	"github.com/cheebo/go-config/types"
 	"github.com/cheebo/pubsub/example/rabbitmq/message"
 	"github.com/cheebo/pubsub/rabbitmq"
+	"encoding/json"
 )
 
 var url = flag.String("url", "amqp://guest:guest@localhost/", "amqp url")
@@ -26,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	pub.Marshaller(json.Marshal)
 
 	go func() {
 		for err := range pub.Errors() {

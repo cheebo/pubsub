@@ -2,22 +2,30 @@ package pubsub
 
 import (
 	"context"
+)
 
-	"github.com/golang/protobuf/proto"
+type Marshaller func(interface{}) ([]byte, error)
+type UnMarshaller func(source []byte, destination interface{}) error
+
+const (
+	NoMarshaller   = "Marshaller not specified"
+	NoUnMarshaller = "UnMarshaller not specified"
 )
 
 type Publisher interface {
-	Publish(context.Context, string, proto.Message) error
+	Marshaller(marshaller Marshaller)
+	Publish(context.Context, string, interface{}) error
 	Errors() <-chan error
 }
 
 type Subscriber interface {
+	UnMarshaller(unmarshaller UnMarshaller)
 	Start() <-chan Message
 	Errors() <-chan error
 	Stop() error
 }
 
 type Message interface {
-	Message() []byte
+	UnMarshal(interface{}) error
 	Done() error
 }

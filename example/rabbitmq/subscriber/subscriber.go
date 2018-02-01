@@ -4,10 +4,10 @@ import (
 	"flag"
 	"log"
 
+	"encoding/json"
 	"github.com/cheebo/go-config/types"
 	"github.com/cheebo/pubsub/example/rabbitmq/message"
 	"github.com/cheebo/pubsub/rabbitmq"
-	"github.com/golang/protobuf/proto"
 )
 
 var url = flag.String("url", "amqp://guest:guest@localhost/", "amqp url")
@@ -27,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	sub.UnMarshaller(json.Unmarshal)
 
 	go func() {
 		for err := range sub.Errors() {
@@ -34,9 +35,10 @@ func main() {
 			sub.Stop()
 		}
 	}()
-	message := new(message.Message)
 	for msg := range sub.Start() {
-		if err = proto.Unmarshal(msg.Message(), message); err != nil {
+		message := new(message.Message)
+		msg.UnMarshal(message)
+		if err = msg.UnMarshal(message); err != nil {
 			log.Fatal(err)
 		}
 		if err = msg.Done(); err != nil {

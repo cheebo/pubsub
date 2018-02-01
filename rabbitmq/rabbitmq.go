@@ -2,35 +2,40 @@ package rabbitmq
 
 import (
 	"context"
-	"github.com/cheebo/pubsub"
 	"github.com/assembla/cony"
-	"github.com/golang/protobuf/proto"
+	"github.com/cheebo/go-config/types"
+	"github.com/cheebo/pubsub"
+	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 	"time"
-	"github.com/cheebo/go-config/types"
 )
 
 type publisher struct {
-	config *types.AMQPConfig
-	client *cony.Client
-	publisher *cony.Publisher
-	errors chan error
+	config     *types.AMQPConfig
+	client     *cony.Client
+	publisher  *cony.Publisher
+	errors     chan error
+	marshaller pubsub.Marshaller
 }
 
 type subscriber struct {
-	config *types.AMQPConfig
-	client *cony.Client
-	consumer *cony.Consumer
-	stop chan chan error
-	errors chan error
+	unmarshaller pubsub.UnMarshaller
+	config       *types.AMQPConfig
+	client       *cony.Client
+	consumer     *cony.Consumer
+	stop         chan chan error
+	errors       chan error
 }
 
 type message struct {
-	body []byte
-	ack  func(bool) error
-	nack func(bool, bool) error
-
+	unmarshaller pubsub.UnMarshaller
+	body         []byte
+	ack          func(bool) error
+	nack         func(bool, bool) error
 }
+
+var errorNoMarshaller = errors.New(pubsub.NoMarshaller)
+var errorNoUnMarshaller = errors.New(pubsub.NoUnMarshaller)
 
 func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 	pub := &publisher{
@@ -59,12 +64,12 @@ func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 
 	pub.errors = make(chan error, 100)
 
-	go func(cli *cony.Client, errors chan error){
+	go func(cli *cony.Client, errors chan error) {
 		for cli.Loop() {
 			select {
 			case err := <-cli.Errors():
-				errors <-err
-			//case <-cli.Blocking():
+				errors <- err
+				//case <-cli.Blocking():
 				//
 			}
 		}
@@ -73,18 +78,25 @@ func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 	return pub, nil
 }
 
+func (p *publisher) Marshaller(marshaller pubsub.Marshaller) {
+	p.marshaller = marshaller
+}
 
-func (p *publisher) Publish(ctx context.Context, key string, msg proto.Message) error {
-	body, err := proto.Marshal(msg)
+func (p *publisher) Publish(ctx context.Context, key string, msg interface{}) error {
+	if p.marshaller == nil {
+		return errorNoMarshaller
+	}
+
+	body, err := p.marshaller(msg)
 	if err != nil {
 		return err
 	}
 
 	publishing := amqp.Publishing{
 		DeliveryMode: uint8(p.config.DeliveryMode),
-		ContentType: "application/x-protobuf",
-		Timestamp: time.Now(),
-		Body: body,
+		ContentType:  "application/x-protobuf",
+		Timestamp:    time.Now(),
+		Body:         body,
 	}
 
 	if len(key) > 0 {
@@ -97,8 +109,6 @@ func (p *publisher) Publish(ctx context.Context, key string, msg proto.Message) 
 func (p *publisher) Errors() <-chan error {
 	return p.errors
 }
-
-
 
 func NewSubscriber(cfg *types.AMQPConfig) (pubsub.Subscriber, error) {
 	client := cony.NewClient(
@@ -137,18 +147,24 @@ func NewSubscriber(cfg *types.AMQPConfig) (pubsub.Subscriber, error) {
 	client.Consume(cns)
 
 	return &subscriber{
-		config: cfg,
-		client: client,
+		config:   cfg,
+		client:   client,
 		consumer: cns,
-		stop: make(chan chan error, 1),
-		errors: make(chan error, 100),
+		stop:     make(chan chan error, 1),
+		errors:   make(chan error, 100),
 	}, nil
+}
+
+func (s *subscriber) UnMarshaller(unmarshaller pubsub.UnMarshaller) {
+	s.unmarshaller = unmarshaller
 }
 
 func (s *subscriber) Start() <-chan pubsub.Message {
 	output := make(chan pubsub.Message)
 	go func(s *subscriber, output chan pubsub.Message) {
-		defer close(output)
+		defer func() {
+			close(output)
+		}()
 		for s.client.Loop() {
 			select {
 			case stop := <-s.stop:
@@ -157,9 +173,10 @@ func (s *subscriber) Start() <-chan pubsub.Message {
 				return
 			case msg := <-s.consumer.Deliveries():
 				output <- &message{
-					body: msg.Body,
-					ack: msg.Ack,
-					nack: msg.Nack,
+					unmarshaller: s.unmarshaller,
+					body:         msg.Body,
+					ack:          msg.Ack,
+					nack:         msg.Nack,
 				}
 			case err := <-s.consumer.Errors():
 				s.errors <- err
@@ -178,13 +195,15 @@ func (s *subscriber) Errors() <-chan error {
 func (s *subscriber) Stop() error {
 	stop := make(chan error)
 	s.stop <- stop
-	err := <- stop
+	err := <-stop
 	return err
 }
 
-
-func (m *message) Message() []byte {
-	return m.body
+func (m *message) UnMarshal(msg interface{}) error {
+	if m.unmarshaller == nil {
+		return errorNoUnMarshaller
+	}
+	return m.unmarshaller(m.body, msg)
 }
 
 func (m *message) Done() error {
