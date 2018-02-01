@@ -5,7 +5,6 @@ import (
 	"github.com/assembla/cony"
 	"github.com/cheebo/go-config/types"
 	"github.com/cheebo/pubsub"
-	"github.com/pkg/errors"
 	"github.com/streadway/amqp"
 	"time"
 )
@@ -33,9 +32,6 @@ type message struct {
 	ack          func(bool) error
 	nack         func(bool, bool) error
 }
-
-var errorNoMarshaller = errors.New(pubsub.NoMarshaller)
-var errorNoUnMarshaller = errors.New(pubsub.NoUnMarshaller)
 
 func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 	pub := &publisher{
@@ -84,7 +80,7 @@ func (p *publisher) Marshaller(marshaller pubsub.Marshaller) {
 
 func (p *publisher) Publish(ctx context.Context, key string, msg interface{}) error {
 	if p.marshaller == nil {
-		return errorNoMarshaller
+		return pubsub.ErrorNoMarshaller
 	}
 
 	body, err := p.marshaller(msg)
@@ -201,7 +197,7 @@ func (s *subscriber) Stop() error {
 
 func (m *message) UnMarshal(msg interface{}) error {
 	if m.unmarshaller == nil {
-		return errorNoUnMarshaller
+		return pubsub.ErrorNoUnMarshaller
 	}
 	return m.unmarshaller(m.body, msg)
 }
