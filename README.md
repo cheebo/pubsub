@@ -1,6 +1,7 @@
 # PubSub
 
 Pub/Sub interface and implementations for
+- Mem: exchange in app memory
 - RabbitMQ
 
 Todo implementations
