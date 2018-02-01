@@ -22,9 +22,9 @@ Interfaces provide methods to register functions for Marshaling and UnMarshaling
 
 ### Subscription
 1. Create new Subscriber
-2. 
+2. Attach unmarshaller
 3. Listen for incoming messages on channel from Subscriber.Start
-4. Ech me
+4. Each message could be unmarshalled by calling message.UnMarshal(&structure)
 
 ```go
 type Publisher interface {
