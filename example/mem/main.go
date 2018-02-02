@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/cheebo/pubsub/mem"
+	"github.com/cheebo/pubsub/memory"
 	"log"
 	"time"
 )
@@ -14,8 +14,8 @@ const (
 )
 
 func main() {
-	hub := mem.NewHub()
-	pub := mem.NewPublisher(hub.NewExchange(exchange))
+	hub := memory.NewHub()
+	pub := memory.NewPublisher(hub.NewExchange(exchange))
 	pub.Marshaller(json.Marshal)
 
 	sub, err := hub.NewSubscriber(exchange)
