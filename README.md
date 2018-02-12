@@ -1,6 +1,7 @@
 # PubSub
 
 Pub/Sub interface and implementations for
+- Dummy: dummy implementation without message transmission
 - Mem: exchange in app memory
 - RabbitMQ
 
