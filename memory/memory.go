@@ -9,7 +9,7 @@ import (
 
 type Hub interface {
 	NewExchange(name string) chan<- []byte
-	NewSubscriber(exchange string) (pubsub.Subscriber, error)
+	NewSubscriber(exchange string, unMarshaler pubsub.UnMarshaller) (pubsub.Subscriber, error)
 }
 
 type hub struct {
@@ -28,7 +28,7 @@ type publisher struct {
 
 type subscriber struct {
 	id           uint
-	unmarshaller pubsub.UnMarshaller
+	unMarshaller pubsub.UnMarshaller
 	stop         chan<- uint
 	errors       chan error
 	subscribed   <-chan []byte
@@ -95,7 +95,7 @@ func (h *hub) NewExchange(name string) chan<- []byte {
 	return ex
 }
 
-func (h *hub) NewSubscriber(exchange string) (pubsub.Subscriber, error) {
+func (h *hub) NewSubscriber(exchange string, unMarshaller pubsub.UnMarshaller) (pubsub.Subscriber, error) {
 	h.sid++
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
@@ -110,20 +110,17 @@ func (h *hub) NewSubscriber(exchange string) (pubsub.Subscriber, error) {
 		h.subscribers[exchange] = make(map[uint]chan []byte)
 	}
 	h.subscribers[exchange][h.sid] = ch
-	sub := newSubscriber(h.sid, ch, h.stop)
+	sub := newSubscriber(h.sid, ch, h.stop, unMarshaller)
 
 	return sub, nil
 }
 
-func NewPublisher(ch chan<- []byte) pubsub.Publisher {
+func NewPublisher(ch chan<- []byte, marshaller pubsub.Marshaller) pubsub.Publisher {
 	return &publisher{
-		ch:  ch,
-		err: make(chan error),
+		ch:         ch,
+		err:        make(chan error),
+		marshaller: marshaller,
 	}
-}
-
-func (p *publisher) Marshaller(marshaller pubsub.Marshaller) {
-	p.marshaller = marshaller
 }
 
 func (p *publisher) Publish(ctx context.Context, key string, msg interface{}) error {
@@ -143,17 +140,14 @@ func (p *publisher) Errors() <-chan error {
 	return p.err
 }
 
-func newSubscriber(id uint, subscribe <-chan []byte, stop chan<- uint) pubsub.Subscriber {
+func newSubscriber(id uint, subscribe <-chan []byte, stop chan<- uint, unMarshaller pubsub.UnMarshaller) pubsub.Subscriber {
 	return &subscriber{
-		id:         id,
-		stop:       stop,
-		errors:     make(chan error, 100),
-		subscribed: subscribe,
+		id:           id,
+		stop:         stop,
+		errors:       make(chan error, 100),
+		subscribed:   subscribe,
+		unMarshaller: unMarshaller,
 	}
-}
-
-func (s *subscriber) UnMarshaller(unmarshaller pubsub.UnMarshaller) {
-	s.unmarshaller = unmarshaller
 }
 
 func (s *subscriber) Start() <-chan pubsub.Message {
@@ -166,7 +160,7 @@ func (s *subscriber) Start() <-chan pubsub.Message {
 			select {
 			case msg := <-s.subscribed:
 				output <- &message{
-					unmarshaller: s.unmarshaller,
+					unmarshaller: s.unMarshaller,
 					body:         msg,
 				}
 			default:

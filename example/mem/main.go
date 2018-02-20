@@ -15,14 +15,12 @@ const (
 
 func main() {
 	hub := memory.NewHub()
-	pub := memory.NewPublisher(hub.NewExchange(exchange))
-	pub.Marshaller(json.Marshal)
+	pub := memory.NewPublisher(hub.NewExchange(exchange), json.Marshal)
 
-	sub, err := hub.NewSubscriber(exchange)
+	sub, err := hub.NewSubscriber(exchange, json.Unmarshal)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	sub.UnMarshaller(json.Unmarshal)
 
 	go func() {
 		for i := 1; i < max; i++ {

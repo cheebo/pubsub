@@ -33,9 +33,10 @@ type message struct {
 	nack         func(bool, bool) error
 }
 
-func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
+func NewPublisher(cfg *types.AMQPConfig, marshaller pubsub.Marshaller) (pubsub.Publisher, error) {
 	pub := &publisher{
-		config: cfg,
+		config:     cfg,
+		marshaller: marshaller,
 	}
 
 	pub.client = cony.NewClient(
@@ -74,10 +75,6 @@ func NewPublisher(cfg *types.AMQPConfig) (pubsub.Publisher, error) {
 	return pub, nil
 }
 
-func (p *publisher) Marshaller(marshaller pubsub.Marshaller) {
-	p.marshaller = marshaller
-}
-
 func (p *publisher) Publish(ctx context.Context, key string, msg interface{}) error {
 	if p.marshaller == nil {
 		return pubsub.ErrorNoMarshaller
@@ -106,7 +103,7 @@ func (p *publisher) Errors() <-chan error {
 	return p.errors
 }
 
-func NewSubscriber(cfg *types.AMQPConfig) (pubsub.Subscriber, error) {
+func NewSubscriber(cfg *types.AMQPConfig, unmarshaller pubsub.UnMarshaller) (pubsub.Subscriber, error) {
 	client := cony.NewClient(
 		cony.URL(cfg.URL),
 		cony.Backoff(cony.DefaultBackoff),
@@ -143,16 +140,13 @@ func NewSubscriber(cfg *types.AMQPConfig) (pubsub.Subscriber, error) {
 	client.Consume(cns)
 
 	return &subscriber{
-		config:   cfg,
-		client:   client,
-		consumer: cns,
-		stop:     make(chan chan error, 1),
-		errors:   make(chan error, 100),
+		config:       cfg,
+		client:       client,
+		consumer:     cns,
+		stop:         make(chan chan error, 1),
+		errors:       make(chan error, 100),
+		unmarshaller: unmarshaller,
 	}, nil
-}
-
-func (s *subscriber) UnMarshaller(unmarshaller pubsub.UnMarshaller) {
-	s.unmarshaller = unmarshaller
 }
 
 func (s *subscriber) Start() <-chan pubsub.Message {

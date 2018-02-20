@@ -21,20 +21,12 @@ func NewSubscriber(ch chan pubsub.Message) pubsub.Subscriber {
 	}
 }
 
-func (p publisher) Marshaller(marshaller pubsub.Marshaller) {
-	// void
-}
-
 func (p publisher) Publish(context.Context, string, interface{}) error {
 	return nil
 }
 
 func (p publisher) Errors() <-chan error {
 	return make(chan error)
-}
-
-func (s subsriber) UnMarshaller(unmarshaller pubsub.UnMarshaller) {
-	// void
 }
 
 func (s subsriber) Start() <-chan pubsub.Message {

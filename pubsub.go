@@ -17,13 +17,11 @@ var ErrorNoMarshaller = errors.New(NoMarshaller)
 var ErrorNoUnMarshaller = errors.New(NoUnMarshaller)
 
 type Publisher interface {
-	Marshaller(marshaller Marshaller)
 	Publish(context.Context, string, interface{}) error
 	Errors() <-chan error
 }
 
 type Subscriber interface {
-	UnMarshaller(unmarshaller UnMarshaller)
 	Start() <-chan Message
 	Errors() <-chan error
 	Stop() error
