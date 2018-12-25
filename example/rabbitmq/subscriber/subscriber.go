@@ -23,11 +23,10 @@ func main() {
 	cfg.Kind = "fanout"
 	cfg.Key = "example_key"
 
-	sub, err := rabbitmq.NewSubscriber(cfg)
+	sub, err := rabbitmq.NewSubscriber(cfg, json.Unmarshal)
 	if err != nil {
 		log.Fatal(err)
 	}
-	sub.UnMarshaller(json.Unmarshal)
 
 	go func() {
 		for err := range sub.Errors() {
